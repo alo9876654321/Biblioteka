@@ -1,0 +1,1639 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>Бібліотека — система обліку</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Source+Sans+3:wght@400;500;600;700&family=Source+Code+Pro:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.14.2/sql-asm.min.js"></script>
+<style>
+:root{
+  --bg:#EEF0E4; --surface:#FFFFFF; --surface-2:#F7F6EE; --ink:#1C2B22; --ink-soft:#4B5A50;
+  --primary:#2F4A3C; --primary-ink:#EAF1EA; --accent:#A8792E; --accent-ink:#3A2A0E;
+  --danger:#9C3B2E; --danger-bg:#F6E4DF; --ok:#3D6B4A; --ok-bg:#E4EEE2;
+  --border:#D9D5C4; --border-strong:#BDB79E; --shadow: 0 1px 2px rgba(28,43,34,.08), 0 8px 24px -12px rgba(28,43,34,.18);
+  --radius:10px; --radius-sm:6px;
+  --font-display:'Fraunces', Georgia, serif; --font-body:'Source Sans 3', system-ui, sans-serif; --font-mono:'Source Code Pro', ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#142019; --surface:#1B2A22; --surface-2:#203026; --ink:#ECEAE0; --ink-soft:#AAB6AD;
+    --primary:#7FAE93; --primary-ink:#12201A; --accent:#D2A94D; --accent-ink:#241A05;
+    --danger:#E08672; --danger-bg:#3A2420; --ok:#8FC49E; --ok-bg:#1E3324;
+    --border:#2C3B32; --border-strong:#3C4E43; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#142019; --surface:#1B2A22; --surface-2:#203026; --ink:#ECEAE0; --ink-soft:#AAB6AD;
+  --primary:#7FAE93; --primary-ink:#12201A; --accent:#D2A94D; --accent-ink:#241A05;
+  --danger:#E08672; --danger-bg:#3A2420; --ok:#8FC49E; --ok-bg:#1E3324;
+  --border:#2C3B32; --border-strong:#3C4E43; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--font-body); font-size:15px;
+  line-height:1.5; min-height:100vh;
+}
+h1,h2,h3,h4{font-family:var(--font-display); font-weight:600; margin:0 0 4px; color:var(--ink); letter-spacing:-.01em;}
+h1{font-size:28px; font-weight:700;}
+h2{font-size:20px;}
+h3{font-size:16px;}
+p{margin:0 0 8px;}
+a{color:inherit;}
+button{font-family:var(--font-body); cursor:pointer;}
+input,select,textarea{font-family:var(--font-body); font-size:14px;}
+::selection{background:var(--accent); color:var(--accent-ink);}
+
+/* ---------- layout shell ---------- */
+#root{min-height:100vh; display:flex; flex-direction:column;}
+.topbar{
+  display:flex; align-items:center; gap:14px; padding:10px 18px; background:var(--primary); color:var(--primary-ink);
+  position:sticky; top:0; z-index:40; box-shadow:var(--shadow);
+}
+.topbar .brand{display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-weight:700; font-size:19px;}
+.topbar .brand .mark{font-size:22px;}
+.topbar .spacer{flex:1;}
+.topbar .who{display:flex; align-items:center; gap:10px; font-size:13px;}
+.topbar .who .name{font-weight:600;}
+.topbar .who .role{opacity:.8; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em;}
+.iconbtn{
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:var(--primary-ink);
+  border-radius:var(--radius-sm); padding:7px 12px; font-size:13px; font-weight:600;
+}
+.iconbtn:hover{background:rgba(255,255,255,.22);}
+.shell{display:flex; flex:1; min-height:0;}
+.sidebar{
+  width:230px; flex:none; background:var(--surface); border-right:1px solid var(--border);
+  padding:14px 10px; display:flex; flex-direction:column; gap:2px;
+}
+.navbtn{
+  display:flex; align-items:center; gap:10px; text-align:left; padding:9px 12px; border-radius:var(--radius-sm);
+  border:none; background:transparent; color:var(--ink-soft); font-size:14px; font-weight:500; width:100%;
+}
+.navbtn:hover{background:var(--surface-2); color:var(--ink);}
+.navbtn.active{background:var(--primary); color:var(--primary-ink); font-weight:600;}
+.navbtn .n{font-size:16px; width:18px; text-align:center;}
+.content{flex:1; min-width:0; padding:22px 26px 60px; overflow-x:hidden;}
+.content-inner{max-width:1180px; margin:0 auto;}
+
+/* mobile */
+.mobiletabs{display:none;}
+@media (max-width: 860px){
+  .sidebar{display:none;}
+  .mobiletabs{
+    display:flex; gap:6px; overflow-x:auto; padding:10px 12px; background:var(--surface);
+    border-bottom:1px solid var(--border); position:sticky; top:52px; z-index:30;
+  }
+  .mobiletabs .navbtn{width:auto; white-space:nowrap; flex:none;}
+  .content{padding:16px 14px 60px;}
+}
+
+/* ---------- generic components ---------- */
+.card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow);}
+.section-head{display:flex; align-items:baseline; justify-content:space-between; gap:14px; margin-bottom:14px; flex-wrap:wrap;}
+.section-head .desc{color:var(--ink-soft); font-size:13.5px;}
+.grid{display:grid; gap:14px;}
+.grid.cols-4{grid-template-columns:repeat(4,1fr);}
+.grid.cols-3{grid-template-columns:repeat(3,1fr);}
+.grid.cols-2{grid-template-columns:repeat(2,1fr);}
+@media (max-width: 900px){ .grid.cols-4{grid-template-columns:repeat(2,1fr);} .grid.cols-3{grid-template-columns:repeat(2,1fr);} }
+@media (max-width: 560px){ .grid.cols-4,.grid.cols-3,.grid.cols-2{grid-template-columns:1fr;} }
+
+.stat{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px;}
+.stat .num{font-family:var(--font-display); font-size:30px; font-weight:700; color:var(--primary);}
+.stat .lbl{color:var(--ink-soft); font-size:12.5px; margin-top:2px;}
+
+table{width:100%; border-collapse:collapse; font-size:13.5px;}
+th{
+  text-align:left; padding:9px 10px; border-bottom:2px solid var(--border-strong); color:var(--ink-soft);
+  font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.03em; white-space:nowrap;
+}
+td{padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:middle;}
+tr:hover td{background:var(--surface-2);}
+.tablewrap{overflow-x:auto; border-radius:var(--radius); border:1px solid var(--border);}
+.tablewrap table{border:none;}
+.tablewrap th:first-child,.tablewrap td:first-child{padding-left:14px;}
+
+.badge{display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:99px; font-size:11.5px; font-weight:600;}
+.badge.ok{background:var(--ok-bg); color:var(--ok);}
+.badge.warn{background:var(--danger-bg); color:var(--danger);}
+.badge.neutral{background:var(--surface-2); color:var(--ink-soft); border:1px solid var(--border);}
+.badge.accent{background:var(--accent); color:var(--accent-ink);}
+
+.btn{
+  display:inline-flex; align-items:center; gap:7px; border-radius:var(--radius-sm); border:1px solid var(--border-strong);
+  background:var(--surface); color:var(--ink); padding:8px 14px; font-size:13.5px; font-weight:600;
+}
+.btn:hover{background:var(--surface-2);}
+.btn.primary{background:var(--primary); color:var(--primary-ink); border-color:var(--primary);}
+.btn.primary:hover{filter:brightness(1.08);}
+.btn.accent{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+.btn.danger{background:transparent; color:var(--danger); border-color:var(--danger);}
+.btn.sm{padding:5px 10px; font-size:12.5px;}
+.btn:disabled{opacity:.45; cursor:not-allowed;}
+.btnrow{display:flex; gap:8px; flex-wrap:wrap;}
+
+label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin:0 0 5px;}
+.field{margin-bottom:13px;}
+input[type=text],input[type=password],input[type=number],input[type=date],select,textarea{
+  width:100%; padding:8px 11px; border:1px solid var(--border-strong); border-radius:var(--radius-sm);
+  background:var(--surface); color:var(--ink);
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent); outline-offset:1px;}
+textarea{resize:vertical; min-height:64px;}
+.formgrid{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}
+@media (max-width:560px){.formgrid{grid-template-columns:1fr;}}
+.hint{color:var(--ink-soft); font-size:12px; margin-top:4px;}
+.stamp{font-family:var(--font-mono); font-size:12.5px; letter-spacing:.02em;}
+
+.modal-backdrop{position:fixed; inset:0; background:rgba(20,28,22,.5); display:flex; align-items:center; justify-content:center; z-index:100; padding:16px;}
+.modal{background:var(--surface); border-radius:var(--radius); max-width:560px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:var(--shadow); padding:22px 24px;}
+.modal .mhead{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+.modal .mhead button{background:none;border:none;font-size:20px;color:var(--ink-soft); line-height:1;}
+
+.toast-wrap{position:fixed; bottom:18px; right:18px; z-index:200; display:flex; flex-direction:column; gap:8px;}
+.toast{background:var(--ink); color:var(--bg); padding:11px 16px; border-radius:var(--radius-sm); font-size:13.5px; box-shadow:var(--shadow); max-width:320px;}
+.toast.err{background:var(--danger);}
+.toast.ok{background:var(--ok);}
+
+.empty{padding:34px 20px; text-align:center; color:var(--ink-soft);}
+.empty .big{font-size:30px; margin-bottom:6px;}
+
+.tabs{display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:16px; flex-wrap:wrap;}
+.tabs button{background:none; border:none; padding:9px 14px; font-size:13.5px; font-weight:600; color:var(--ink-soft); border-bottom:2px solid transparent;}
+.tabs button.active{color:var(--primary); border-bottom-color:var(--primary);}
+
+.login-wrap{min-height:100vh; display:flex; align-items:center; justify-content:center; background:
+  radial-gradient(circle at 20% 15%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 45%),
+  var(--bg); padding:20px;}
+.login-card{width:100%; max-width:380px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:32px 30px; box-shadow:var(--shadow);}
+.login-mark{font-size:34px; margin-bottom:6px;}
+.login-card h1{font-size:23px; margin-bottom:2px;}
+.login-card .sub{color:var(--ink-soft); font-size:13px; margin-bottom:22px;}
+.demo-accounts{margin-top:18px; padding-top:16px; border-top:1px dashed var(--border-strong); font-size:12px; color:var(--ink-soft);}
+.demo-accounts .row{display:flex; justify-content:space-between; padding:3px 0; font-family:var(--font-mono); cursor:pointer;}
+.demo-accounts .row:hover{color:var(--primary);}
+.loginerr{background:var(--danger-bg); color:var(--danger); padding:9px 12px; border-radius:var(--radius-sm); font-size:13px; margin-bottom:14px;}
+
+.boot{min-height:100vh; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; color:var(--ink-soft); font-size:14px;}
+.boot .mark{font-size:34px;}
+.spin{width:26px; height:26px; border-radius:50%; border:3px solid var(--border); border-top-color:var(--primary); animation:sp 0.8s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg);}}
+
+.searchbar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;}
+.searchbar input[type=text]{max-width:280px;}
+.searchbar select{max-width:170px;}
+
+.book-title{font-weight:600;}
+.book-sub{color:var(--ink-soft); font-size:12px;}
+.avail{font-family:var(--font-mono); font-size:12.5px;}
+.progress{height:5px; border-radius:3px; background:var(--surface-2); overflow:hidden; margin-top:4px; width:70px;}
+.progress > div{height:100%; background:var(--accent);}
+
+.kicker{font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); font-weight:700; margin-bottom:6px;}
+footer.appfoot{text-align:center; color:var(--ink-soft); font-size:11.5px; padding:20px 0 6px;}
+</style>
+</head>
+<body>
+<div id="root"><div class="boot"><div class="mark">📚</div><div class="spin"></div><div>Завантаження бібліотеки…</div></div></div>
+<div class="toast-wrap" id="toasts"></div>
+<script>
+"use strict";
+
+/* ============================== STATE ============================== */
+const State = {
+  db: null,
+  currentUser: null,
+  route: "dashboard",
+  routeParams: {},
+  booted: false,
+};
+
+const IDB_NAME = "school-library-db";
+const IDB_STORE = "files";
+const IDB_KEY = "library.sqlite";
+
+/* ============================== UTIL ============================== */
+function $(sel, root){ return (root||document).querySelector(sel); }
+function el(html){ const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstElementChild; }
+function escapeHtml(s){
+  if(s===null||s===undefined) return "";
+  return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function nowISO(){ return new Date().toISOString(); }
+function addDaysISO(iso, days){ const d=new Date(iso+"T00:00:00"); d.setDate(d.getDate()+Number(days)); return d.toISOString().slice(0,10); }
+function daysDiff(a,b){ const A=new Date(a+"T00:00:00"), B=new Date(b+"T00:00:00"); return Math.round((B-A)/86400000); }
+function fmtDate(iso){ if(!iso) return "—"; const [y,m,d]=iso.split("T")[0].split("-"); return `${d}.${m}.${y}`; }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+function toast(msg, kind){
+  const wrap = $("#toasts");
+  const t = el(`<div class="toast ${kind==='err'?'err':kind==='ok'?'ok':''}">${escapeHtml(msg)}</div>`);
+  wrap.appendChild(t);
+  setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .3s"; setTimeout(()=>t.remove(),320); }, 3400);
+}
+
+async function sha256Hex(text){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+/* ============================== INDEXEDDB PERSISTENCE ============================== */
+function idbOpen(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore(IDB_STORE); };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+async function idbLoad(){
+  try{
+    const conn = await idbOpen();
+    return await new Promise((resolve,reject)=>{
+      const tx = conn.transaction(IDB_STORE,"readonly");
+      const rq = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      rq.onsuccess = ()=> resolve(rq.result || null);
+      rq.onerror = ()=> reject(rq.error);
+    });
+  }catch(e){ console.warn("idbLoad failed", e); return null; }
+}
+async function idbSave(uint8arr){
+  try{
+    const conn = await idbOpen();
+    return await new Promise((resolve,reject)=>{
+      const tx = conn.transaction(IDB_STORE,"readwrite");
+      tx.objectStore(IDB_STORE).put(uint8arr, IDB_KEY);
+      tx.oncomplete = ()=> resolve(true);
+      tx.onerror = ()=> reject(tx.error);
+    });
+  }catch(e){ console.warn("idbSave failed", e); return false; }
+}
+async function idbClear(){
+  try{
+    const conn = await idbOpen();
+    return await new Promise((resolve,reject)=>{
+      const tx = conn.transaction(IDB_STORE,"readwrite");
+      tx.objectStore(IDB_STORE).delete(IDB_KEY);
+      tx.oncomplete = ()=> resolve(true);
+      tx.onerror = ()=> reject(tx.error);
+    });
+  }catch(e){ return false; }
+}
+
+let persistTimer = null;
+function schedulePersist(){
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(()=>{
+    try{
+      const data = State.db.export();
+      idbSave(data);
+    }catch(e){ console.warn("persist failed", e); }
+  }, 150);
+}
+
+/* ============================== DB LAYER ============================== */
+function q(sql, params){
+  const stmt = State.db.prepare(sql);
+  if(params) stmt.bind(params);
+  const rows = [];
+  while(stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+function q1(sql, params){ const r = q(sql, params); return r.length? r[0] : null; }
+function run(sql, params){
+  State.db.run(sql, params||[]);
+  schedulePersist();
+}
+function lastId(){ return q1("SELECT last_insert_rowid() AS id").id; }
+
+function logAction(action, entityType, entityId, description){
+  run(`INSERT INTO audit_log (user_id, action, entity_type, entity_id, description, created_at) VALUES (?,?,?,?,?,?)`,
+    [State.currentUser? State.currentUser.id : null, action, entityType||null, entityId||null, description||"", nowISO()]);
+}
+
+function getSetting(key, def){
+  const r = q1("SELECT value FROM settings WHERE key=?", [key]);
+  return r ? r.value : def;
+}
+function setSetting(key, value){
+  run("INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [key, String(value)]);
+}
+
+/* ============================== SCHEMA + SEED ============================== */
+const SCHEMA_SQL = `
+CREATE TABLE genres (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE classes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  school_year TEXT NOT NULL,
+  teacher_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'Активний'
+);
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  login TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL,
+  class_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'Активний',
+  created_at TEXT NOT NULL
+);
+CREATE TABLE books (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  author TEXT NOT NULL,
+  isbn TEXT,
+  genre_id INTEGER,
+  publisher TEXT,
+  publication_year INTEGER,
+  description TEXT,
+  total_copies INTEGER NOT NULL DEFAULT 0,
+  available_copies INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'Активна',
+  created_at TEXT NOT NULL
+);
+CREATE TABLE borrowings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  book_id INTEGER NOT NULL,
+  quantity INTEGER NOT NULL,
+  returned_quantity INTEGER NOT NULL DEFAULT 0,
+  borrowed_at TEXT NOT NULL,
+  due_at TEXT NOT NULL,
+  returned_at TEXT,
+  status TEXT NOT NULL DEFAULT 'Видано',
+  issued_by INTEGER
+);
+CREATE TABLE audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  action TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id INTEGER,
+  description TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`;
+
+async function seedDatabase(){
+  State.db.run(SCHEMA_SQL);
+  const now = nowISO();
+  // genres
+  ["Художня література","Наукова література","Підручники","Довідкова література","Дитяча література"].forEach(g=>{
+    run("INSERT INTO genres(name) VALUES (?)", [g]);
+  });
+  // settings
+  setSetting("max_books_per_user", "10");
+  setSetting("default_loan_days", "14");
+  setSetting("school_name", "Ліцей №1");
+
+  // users (password hashes computed async)
+  const admin_hash = await sha256Hex("admin123");
+  const lib_hash = await sha256Hex("lib123");
+  const t1_hash = await sha256Hex("teach123");
+  const t2_hash = await sha256Hex("teach123");
+
+  run(`INSERT INTO users (first_name,last_name,login,password_hash,role,class_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)`,
+    ["Олена","Коваленко","admin",admin_hash,"admin",null,"Активний",now]);
+  run(`INSERT INTO users (first_name,last_name,login,password_hash,role,class_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)`,
+    ["Марія","Бондаренко","librarian",lib_hash,"librarian",null,"Активний",now]);
+  run(`INSERT INTO users (first_name,last_name,login,password_hash,role,class_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)`,
+    ["Іван","Іваненко","teacher",t1_hash,"teacher",null,"Активний",now]);
+  run(`INSERT INTO users (first_name,last_name,login,password_hash,role,class_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)`,
+    ["Наталія","Шевченко","teacher2",t2_hash,"teacher",null,"Активний",now]);
+
+  // classes (teacher_id references the two teachers)
+  const teacherIds = q("SELECT id FROM users WHERE role='teacher' ORDER BY id").map(r=>r.id);
+  run(`INSERT INTO classes (name,school_year,teacher_id,status) VALUES (?,?,?,?)`, ["7-А","2026/2027", teacherIds[0], "Активний"]);
+  run(`INSERT INTO classes (name,school_year,teacher_id,status) VALUES (?,?,?,?)`, ["8-Б","2026/2027", teacherIds[1], "Активний"]);
+  run(`INSERT INTO classes (name,school_year,teacher_id,status) VALUES (?,?,?,?)`, ["9-А","2026/2027", null, "Активний"]);
+
+  const classIds = q("SELECT id FROM classes ORDER BY id").map(r=>r.id);
+  run("UPDATE users SET class_id=? WHERE login='teacher'", [classIds[0]]);
+  run("UPDATE users SET class_id=? WHERE login='teacher2'", [classIds[1]]);
+
+  const genreIds = {};
+  q("SELECT id,name FROM genres").forEach(g=> genreIds[g.name]=g.id);
+
+  // books
+  const books = [
+    ["Кобзар","Тарас Шевченко","978-966-03-1234-5",genreIds["Художня література"],"Дніпро",2018,"Збірка поезій.",10,now],
+    ["Тіні забутих предків","Михайло Коцюбинський","978-966-03-5555-1",genreIds["Художня література"],"Веселка",2015,"Повість.",6,now],
+    ["Фізика. 9 клас","О. Бар'яхтар","978-617-09-0001-1",genreIds["Підручники"],"Ранок",2021,"Підручник для 9 класу.",25,now],
+    ["Алгебра. 8 клас","Г. Мерзляк","978-617-09-0002-2",genreIds["Підручники"],"Гімназія",2021,"Підручник для 8 класу.",25,now],
+    ["Тлумачний словник української мови","колектив авторів","978-966-03-0000-9",genreIds["Довідкова література"],"Перун",2019,"Словник.",4,now],
+    ["Пригоди Незнайка","Микола Носов","978-966-03-8888-8",genreIds["Дитяча література"],"Веселка",2016,"Повість-казка.",8,now],
+    ["Коротка історія часу","Стівен Гокінг","978-966-03-7777-7",genreIds["Наукова література"],"КСД",2020,"Науково-популярна книга.",5,now],
+    ["Захар Беркут","Іван Франко","978-966-03-4444-4",genreIds["Художня література"],"Каменяр",2017,"Повість.",7,now],
+  ];
+  books.forEach(b=>{
+    run(`INSERT INTO books (title,author,isbn,genre_id,publisher,publication_year,description,total_copies,available_copies,status,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [b[0],b[1],b[2],b[3],b[4],b[5],b[6],b[7],b[7],"Активна",b[8]]);
+  });
+
+  logAction("Ініціалізація","system",null,"Базу даних створено та заповнено демонстраційними даними.");
+}
+
+async function initDatabase(){
+  const SQL = await initSqlJs();
+  const saved = await idbLoad();
+  if(saved){
+    try{
+      State.db = new SQL.Database(new Uint8Array(saved));
+      // sanity check schema exists
+      q1("SELECT COUNT(*) AS c FROM users");
+      return;
+    }catch(e){
+      console.warn("Saved DB invalid, recreating", e);
+    }
+  }
+  State.db = new SQL.Database();
+  await seedDatabase();
+  schedulePersist();
+}
+
+/* ============================== AUTH ============================== */
+async function login(loginVal, passVal){
+  const user = q1("SELECT * FROM users WHERE login=?", [loginVal.trim()]);
+  if(!user) return {ok:false, msg:"Користувача з таким логіном не знайдено."};
+  if(user.status !== "Активний") return {ok:false, msg:"Обліковий запис деактивовано. Зверніться до адміністратора."};
+  const hash = await sha256Hex(passVal);
+  if(hash !== user.password_hash) return {ok:false, msg:"Невірний пароль."};
+  State.currentUser = user;
+  logAction("Вхід у систему","user",user.id, `${user.last_name} ${user.first_name} увійшов(-ла) у систему.`);
+  return {ok:true};
+}
+function logout(){
+  if(State.currentUser) logAction("Вихід із системи","user",State.currentUser.id, "Завершення сеансу.");
+  State.currentUser = null;
+  State.route = "dashboard";
+  render();
+}
+function roleLabel(role){
+  return role==="admin" ? "Адміністратор" : role==="librarian" ? "Бібліотекар" : role==="teacher" ? "Вчитель" : role;
+}
+
+/* ============================== DOMAIN HELPERS ============================== */
+function isOverdue(b){
+  return (b.status==="Видано" || b.status==="Частково повернено") && b.due_at < todayISO();
+}
+function displayStatus(b){
+  if(isOverdue(b)) return "Прострочено";
+  return b.status;
+}
+function userFullName(u){ return u ? `${u.last_name} ${u.first_name}` : "—"; }
+function className(classId){
+  if(!classId) return "—";
+  const c = q1("SELECT name FROM classes WHERE id=?", [classId]);
+  return c ? c.name : "—";
+}
+function currentBorrowedCount(userId){
+  const r = q1(`SELECT COALESCE(SUM(quantity-returned_quantity),0) AS c FROM borrowings WHERE user_id=? AND status IN ('Видано','Частково повернено')`, [userId]);
+  return r.c;
+}
+
+/* ---- Borrow (issue) ---- */
+function issueBorrowing(userId, bookId, quantity, dueDays){
+  quantity = parseInt(quantity,10);
+  const user = q1("SELECT * FROM users WHERE id=?", [userId]);
+  const book = q1("SELECT * FROM books WHERE id=?", [bookId]);
+  const maxBooks = parseInt(getSetting("max_books_per_user","10"),10);
+  const loanDays = dueDays || parseInt(getSetting("default_loan_days","14"),10);
+
+  if(!user) return {ok:false, msg:"Користувача не знайдено."};
+  if(user.status !== "Активний") return {ok:false, msg:"Обліковий запис користувача неактивний."};
+  if(!book) return {ok:false, msg:"Книгу не знайдено."};
+  if(book.status !== "Активна") return {ok:false, msg:"Ця книга архівна і недоступна для видачі."};
+  if(!quantity || quantity < 1) return {ok:false, msg:"Некоректна кількість примірників."};
+  if(quantity > book.available_copies) return {ok:false, msg:`Неможливо видати книгу. Доступно лише ${book.available_copies} примірники(-ів).`};
+  const already = currentBorrowedCount(userId);
+  if(already + quantity > maxBooks) return {ok:false, msg:`Ви вже маєте максимальну кількість книг (ліміт: ${maxBooks}).`};
+
+  const borrowedAt = todayISO();
+  const dueAt = addDaysISO(borrowedAt, loanDays);
+  run(`INSERT INTO borrowings (user_id,book_id,quantity,returned_quantity,borrowed_at,due_at,returned_at,status,issued_by)
+       VALUES (?,?,?,0,?,?,NULL,'Видано',?)`, [userId, bookId, quantity, borrowedAt, dueAt, State.currentUser.id]);
+  const borrowId = lastId();
+  run("UPDATE books SET available_copies = available_copies - ? WHERE id=?", [quantity, bookId]);
+  logAction("Видача книги","borrowing",borrowId, `${userFullName(user)} отримав(-ла) «${book.title}» (${quantity} прим.).`);
+  return {ok:true, msg:"Книгу успішно видано."};
+}
+
+/* ---- Return ---- */
+function returnBorrowing(borrowId, returnQty){
+  const b = q1("SELECT * FROM borrowings WHERE id=?", [borrowId]);
+  if(!b) return {ok:false, msg:"Операцію не знайдено."};
+  const remaining = b.quantity - b.returned_quantity;
+  returnQty = parseInt(returnQty,10);
+  if(!returnQty || returnQty < 1) return {ok:false, msg:"Некоректна кількість."};
+  if(returnQty > remaining) return {ok:false, msg:`Неможливо повернути більше, ніж видано. Залишається видано: ${remaining}.`};
+
+  const newReturned = b.returned_quantity + returnQty;
+  const fullyReturned = newReturned >= b.quantity;
+  run(`UPDATE borrowings SET returned_quantity=?, status=?, returned_at=? WHERE id=?`,
+    [newReturned, fullyReturned ? "Повернено" : "Частково повернено", fullyReturned ? todayISO() : b.returned_at, borrowId]);
+  run("UPDATE books SET available_copies = available_copies + ? WHERE id=?", [returnQty, b.book_id]);
+  const book = q1("SELECT title FROM books WHERE id=?", [b.book_id]);
+  const user = q1("SELECT * FROM users WHERE id=?", [b.user_id]);
+  logAction("Повернення книги","borrowing",borrowId, `${userFullName(user)} повернув(-ла) «${book.title}» (${returnQty} прим.).`);
+  return {ok:true, msg:"Книгу успішно повернено."};
+}
+
+/* ---- Books CRUD ---- */
+function saveBook(data, editId){
+  if(!data.title || !data.author) return {ok:false, msg:"Назва та автор обов'язкові."};
+  const total = parseInt(data.total_copies,10);
+  if(isNaN(total) || total < 0) return {ok:false, msg:"Кількість примірників не може бути від'ємною."};
+  if(editId){
+    const existing = q1("SELECT * FROM books WHERE id=?", [editId]);
+    const issued = existing.total_copies - existing.available_copies;
+    if(total < issued) return {ok:false, msg:`Неможливо встановити кількість менше за вже видану (${issued}).`};
+    const newAvailable = total - issued;
+    run(`UPDATE books SET title=?,author=?,isbn=?,genre_id=?,publisher=?,publication_year=?,description=?,total_copies=?,available_copies=? WHERE id=?`,
+      [data.title,data.author,data.isbn||null,data.genre_id||null,data.publisher||null,data.publication_year||null,data.description||null,total,newAvailable,editId]);
+    logAction("Редагування книги","book",editId, `Оновлено дані книги «${data.title}».`);
+    return {ok:true, msg:"Книгу оновлено."};
+  } else {
+    run(`INSERT INTO books (title,author,isbn,genre_id,publisher,publication_year,description,total_copies,available_copies,status,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [data.title,data.author,data.isbn||null,data.genre_id||null,data.publisher||null,data.publication_year||null,data.description||null,total,total,"Активна",nowISO()]);
+    const id = lastId();
+    logAction("Додавання книги","book",id, `Додано нову книгу «${data.title}».`);
+    return {ok:true, msg:"Книгу додано."};
+  }
+}
+function archiveBook(id, archive){
+  run("UPDATE books SET status=? WHERE id=?", [archive?"Архівна":"Активна", id]);
+  logAction(archive?"Архівування книги":"Відновлення книги","book",id, "");
+}
+function ensureGenre(name){
+  name = (name||"").trim();
+  if(!name) return null;
+  const existing = q1("SELECT id FROM genres WHERE name=?", [name]);
+  if(existing) return existing.id;
+  run("INSERT INTO genres(name) VALUES (?)", [name]);
+  return lastId();
+}
+
+/* ---- Users CRUD ---- */
+async function saveUser(data, editId, actorRole){
+  if(!data.first_name || !data.last_name || !data.login) return {ok:false, msg:"Заповніть ім'я, прізвище та логін."};
+  const dup = q1("SELECT id FROM users WHERE login=? AND id!=?", [data.login, editId||-1]);
+  if(dup) return {ok:false, msg:"Такий логін вже зайнято."};
+  if(actorRole==="librarian" && data.role==="admin") return {ok:false, msg:"Бібліотекар не може призначати роль адміністратора."};
+  if(editId){
+    let sql = `UPDATE users SET first_name=?,last_name=?,login=?,class_id=? WHERE id=?`;
+    let params = [data.first_name,data.last_name,data.login,data.class_id||null,editId];
+    run(sql, params);
+    if(actorRole==="admin" && data.role){
+      run("UPDATE users SET role=? WHERE id=?", [data.role, editId]);
+    }
+    if(data.password){
+      const hash = await sha256Hex(data.password);
+      run("UPDATE users SET password_hash=? WHERE id=?", [hash, editId]);
+    }
+    logAction("Редагування користувача","user",editId, `Оновлено дані користувача ${data.last_name} ${data.first_name}.`);
+    return {ok:true, msg:"Користувача оновлено."};
+  } else {
+    const pass = data.password || Math.random().toString(36).slice(2,8);
+    const hash = await sha256Hex(pass);
+    run(`INSERT INTO users (first_name,last_name,login,password_hash,role,class_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)`,
+      [data.first_name,data.last_name,data.login,hash,data.role||"teacher",data.class_id||null,"Активний",nowISO()]);
+    const id = lastId();
+    logAction("Додавання користувача","user",id, `Додано користувача ${data.last_name} ${data.first_name} (${roleLabel(data.role||"teacher")}).`);
+    return {ok:true, msg:`Користувача додано. Тимчасовий пароль: ${pass}`, tempPass: data.password?null:pass};
+  }
+}
+function setUserStatus(id, status){
+  run("UPDATE users SET status=? WHERE id=?", [status, id]);
+  logAction(status==="Активний"?"Відновлення користувача":"Деактивація користувача","user",id, "");
+}
+
+/* ---- Classes CRUD ---- */
+function saveClass(data, editId){
+  if(!data.name || !data.school_year) return {ok:false, msg:"Назва класу та навчальний рік обов'язкові."};
+  if(editId){
+    run("UPDATE classes SET name=?,school_year=?,teacher_id=?,status=? WHERE id=?",
+      [data.name,data.school_year,data.teacher_id||null,data.status||"Активний",editId]);
+    logAction("Редагування класу","class",editId, `Оновлено клас «${data.name}».`);
+    return {ok:true, msg:"Клас оновлено."};
+  } else {
+    run("INSERT INTO classes (name,school_year,teacher_id,status) VALUES (?,?,?,?)",
+      [data.name,data.school_year,data.teacher_id||null,"Активний"]);
+    const id = lastId();
+    logAction("Додавання класу","class",id, `Додано клас «${data.name}».`);
+    return {ok:true, msg:"Клас додано."};
+  }
+}
+
+/* ============================== NAV CONFIG ============================== */
+const NAV = {
+  admin: [
+    ["dashboard","📊","Панель керування"],
+    ["books","📖","Книги"],
+    ["users","🧑‍🤝‍🧑","Користувачі"],
+    ["classes","🏫","Класи"],
+    ["borrow","🔄","Видача та повернення"],
+    ["overdue","⏰","Прострочені"],
+    ["stats","📈","Статистика"],
+    ["reports","🧾","Звіти"],
+    ["audit","🗒️","Журнал дій"],
+    ["settings","⚙️","Налаштування"],
+  ],
+  librarian: [
+    ["dashboard","📊","Головна / статистика"],
+    ["books","📖","Книги"],
+    ["users","🧑‍🤝‍🧑","Користувачі"],
+    ["borrow","🔄","Видача та повернення"],
+    ["overdue","⏰","Прострочені"],
+    ["history","🕘","Історія"],
+    ["reports","🧾","Звіти"],
+  ],
+  teacher: [
+    ["catalog","🔎","Каталог книг"],
+    ["mybooks","📚","Мої книги"],
+    ["history","🕘","Історія"],
+    ["profile","👤","Профіль"],
+  ],
+};
+
+function goto(route, params){
+  State.route = route;
+  State.routeParams = params || {};
+  render();
+  const c = $(".content"); if(c) c.scrollTop = 0;
+  window.scrollTo(0,0);
+}
+window.goto = goto;
+
+/* ============================== MODAL ============================== */
+function openModal(html){
+  closeModal();
+  const back = el(`<div class="modal-backdrop" id="modalBackdrop"><div class="modal">${html}</div></div>`);
+  back.addEventListener("click", (e)=>{ if(e.target.id==="modalBackdrop") closeModal(); });
+  document.body.appendChild(back);
+}
+function closeModal(){ const b = $("#modalBackdrop"); if(b) b.remove(); }
+window.closeModal = closeModal;
+
+/* ============================== ROOT RENDER ============================== */
+function render(){
+  const root = $("#root");
+  if(!State.currentUser){
+    root.innerHTML = "";
+    root.appendChild(renderLogin());
+    return;
+  }
+  root.innerHTML = "";
+  root.appendChild(renderShell());
+}
+
+function renderLogin(){
+  const wrap = el(`
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="login-mark">📚</div>
+        <h1>Шкільна бібліотека</h1>
+        <div class="sub">Увійдіть у свій обліковий запис, щоб продовжити</div>
+        <div id="loginErrBox"></div>
+        <form id="loginForm">
+          <div class="field"><label>Логін</label><input type="text" id="loginInput" autocomplete="username" required></div>
+          <div class="field"><label>Пароль</label><input type="password" id="passInput" autocomplete="current-password" required></div>
+          <button type="submit" class="btn primary" style="width:100%; justify-content:center; padding:10px;">Увійти</button>
+        </form>
+        <div class="demo-accounts">
+          <div style="margin-bottom:6px; font-weight:600;">Демонстраційні облікові записи (натисніть, щоб підставити):</div>
+          <div class="row" data-l="admin" data-p="admin123"><span>admin</span><span>Адміністратор</span></div>
+          <div class="row" data-l="librarian" data-p="lib123"><span>librarian</span><span>Бібліотекар</span></div>
+          <div class="row" data-l="teacher" data-p="teach123"><span>teacher</span><span>Вчитель</span></div>
+        </div>
+      </div>
+    </div>
+  `);
+  wrap.querySelectorAll(".demo-accounts .row").forEach(r=>{
+    r.addEventListener("click", ()=>{
+      wrap.querySelector("#loginInput").value = r.dataset.l;
+      wrap.querySelector("#passInput").value = r.dataset.p;
+    });
+  });
+  wrap.querySelector("#loginForm").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const l = wrap.querySelector("#loginInput").value;
+    const p = wrap.querySelector("#passInput").value;
+    const res = await login(l,p);
+    if(res.ok){ State.route="dashboard"; render(); }
+    else {
+      wrap.querySelector("#loginErrBox").innerHTML = `<div class="loginerr">${escapeHtml(res.msg)}</div>`;
+    }
+  });
+  return wrap;
+}
+
+function renderShell(){
+  const role = State.currentUser.role;
+  const items = NAV[role] || [];
+  const wrap = el(`<div id="shellRoot"></div>`);
+  wrap.innerHTML = `
+    <div class="topbar">
+      <div class="brand"><span class="mark">📚</span> Шкільна бібліотека</div>
+      <div class="spacer"></div>
+      <div class="who">
+        <div>
+          <div class="name">${escapeHtml(userFullName(State.currentUser))}</div>
+          <div class="role">${roleLabel(role)}</div>
+        </div>
+      </div>
+      <button class="iconbtn" id="logoutBtn">Вийти</button>
+    </div>
+    <div class="mobiletabs">${items.map(([r,ic,lbl])=>`<button class="navbtn ${State.route===r?'active':''}" data-r="${r}"><span class="n">${ic}</span>${lbl}</button>`).join("")}</div>
+    <div class="shell">
+      <div class="sidebar">${items.map(([r,ic,lbl])=>`<button class="navbtn ${State.route===r?'active':''}" data-r="${r}"><span class="n">${ic}</span>${lbl}</button>`).join("")}</div>
+      <div class="content"><div class="content-inner" id="contentInner"></div></div>
+    </div>
+  `;
+  wrap.querySelectorAll("[data-r]").forEach(b=> b.addEventListener("click", ()=> goto(b.dataset.r)));
+  wrap.querySelector("#logoutBtn").addEventListener("click", logout);
+  const inner = wrap.querySelector("#contentInner");
+  inner.appendChild(renderRoute());
+  return wrap;
+}
+
+function renderRoute(){
+  const role = State.currentUser.role;
+  const allowed = new Set((NAV[role]||[]).map(x=>x[0]));
+  const route = allowed.has(State.route) ? State.route : (NAV[role][0][0]);
+  switch(route){
+    case "dashboard": return viewDashboard();
+    case "books": return viewBooks();
+    case "users": return viewUsers();
+    case "classes": return viewClasses();
+    case "borrow": return viewBorrow();
+    case "overdue": return viewOverdue();
+    case "stats": return viewStats();
+    case "reports": return viewReports();
+    case "audit": return viewAudit();
+    case "settings": return viewSettings();
+    case "catalog": return viewCatalog();
+    case "mybooks": return viewMyBooks();
+    case "history": return viewHistory();
+    case "profile": return viewProfile();
+    default: return el(`<div class="empty">Сторінку не знайдено.</div>`);
+  }
+}
+
+/* ============================== DASHBOARD ============================== */
+function viewDashboard(){
+  const totalBooks = q1("SELECT COUNT(*) c FROM books WHERE status='Активна'").c;
+  const totalCopies = q1("SELECT COALESCE(SUM(total_copies),0) c FROM books").c;
+  const availCopies = q1("SELECT COALESCE(SUM(available_copies),0) c FROM books WHERE status='Активна'").c;
+  const issuedCopies = totalCopies - q1("SELECT COALESCE(SUM(available_copies),0) c FROM books").c;
+  const totalUsers = q1("SELECT COUNT(*) c FROM users").c;
+  const activeUsers = q1("SELECT COUNT(*) c FROM users WHERE status='Активний'").c;
+  const activeBorrowings = q1("SELECT COUNT(*) c FROM borrowings WHERE status IN ('Видано','Частково повернено')").c;
+  const overdueCount = q("SELECT * FROM borrowings WHERE status IN ('Видано','Частково повернено')").filter(isOverdue).length;
+
+  const popular = q(`SELECT b.title, b.author, COUNT(*) cnt, COALESCE(SUM(br.quantity),0) qty
+                      FROM borrowings br JOIN books b ON b.id=br.book_id
+                      GROUP BY br.book_id ORDER BY qty DESC LIMIT 5`);
+  const byClass = q(`SELECT c.name, COALESCE(SUM(br.quantity),0) qty
+                      FROM classes c LEFT JOIN users u ON u.class_id=c.id
+                      LEFT JOIN borrowings br ON br.user_id=u.id
+                      GROUP BY c.id ORDER BY qty DESC`);
+
+  const wrap = el(`<div></div>`);
+  wrap.innerHTML = `
+    <div class="section-head">
+      <div><div class="kicker">Огляд</div><h1>${roleLabel(State.currentUser.role)==="Адміністратор"?"Панель керування":"Стан бібліотеки"}</h1><div class="desc">Загальна статистика по бібліотеці станом на ${fmtDate(todayISO())}.</div></div>
+    </div>
+    <div class="grid cols-4" style="margin-bottom:20px;">
+      <div class="stat"><div class="num">${totalBooks}</div><div class="lbl">Активних назв книг</div></div>
+      <div class="stat"><div class="num">${availCopies}/${totalCopies}</div><div class="lbl">Доступно примірників</div></div>
+      <div class="stat"><div class="num">${activeBorrowings}</div><div class="lbl">Активних видач</div></div>
+      <div class="stat"><div class="num" style="${overdueCount>0?'color:var(--danger)':''}">${overdueCount}</div><div class="lbl">Прострочених</div></div>
+    </div>
+    <div class="grid cols-2" style="margin-bottom:20px;">
+      <div class="stat"><div class="num">${totalUsers}</div><div class="lbl">Усього користувачів</div></div>
+      <div class="stat"><div class="num">${activeUsers}</div><div class="lbl">Активних користувачів</div></div>
+    </div>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Найпопулярніші книги</h3>
+        ${popular.length? `<div class="tablewrap"><table><thead><tr><th>Книга</th><th>Автор</th><th>Видано, прим.</th></tr></thead><tbody>
+          ${popular.map(p=>`<tr><td>${escapeHtml(p.title)}</td><td>${escapeHtml(p.author)}</td><td class="stamp">${p.qty}</td></tr>`).join("")}
+        </tbody></table></div>` : `<div class="empty">Ще немає даних про видачі.</div>`}
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Книги за класами</h3>
+        ${byClass.length? `<div class="tablewrap"><table><thead><tr><th>Клас</th><th>Взято книг</th></tr></thead><tbody>
+          ${byClass.map(p=>`<tr><td>${escapeHtml(p.name)}</td><td class="stamp">${p.qty}</td></tr>`).join("")}
+        </tbody></table></div>` : `<div class="empty">Класів ще немає.</div>`}
+      </div>
+    </div>
+  `;
+  return wrap;
+}
+
+/* ============================== BOOKS ============================== */
+function viewBooks(){
+  const canEdit = State.currentUser.role==="admin" || State.currentUser.role==="librarian";
+  const wrap = el(`<div></div>`);
+  const genres = q("SELECT * FROM genres ORDER BY name");
+  let filters = {search:"", genre:"", status:"active"};
+
+  function draw(){
+    let sql = "SELECT b.*, g.name AS genre_name FROM books b LEFT JOIN genres g ON g.id=b.genre_id WHERE 1=1";
+    const params = [];
+    if(filters.search){ sql += " AND (b.title LIKE ? OR b.author LIKE ? OR b.isbn LIKE ?)"; const s=`%${filters.search}%`; params.push(s,s,s); }
+    if(filters.genre){ sql += " AND b.genre_id=?"; params.push(filters.genre); }
+    if(filters.status==="active"){ sql += " AND b.status='Активна'"; }
+    if(filters.status==="archived"){ sql += " AND b.status='Архівна'"; }
+    sql += " ORDER BY b.title";
+    const rows = q(sql, params);
+
+    wrap.querySelector("#booksBody").innerHTML = rows.length ? rows.map(r=>`
+      <tr>
+        <td><div class="book-title">${escapeHtml(r.title)}</div><div class="book-sub">${escapeHtml(r.author)}${r.publication_year?`, ${r.publication_year}`:""}</div></td>
+        <td>${escapeHtml(r.genre_name||"—")}</td>
+        <td class="stamp">${escapeHtml(r.isbn||"—")}</td>
+        <td><span class="avail">${r.available_copies} з ${r.total_copies}</span><div class="progress"><div style="width:${r.total_copies? (100*r.available_copies/r.total_copies):0}%"></div></div></td>
+        <td>${r.status==="Активна"?'<span class="badge ok">Активна</span>':'<span class="badge neutral">Архівна</span>'}</td>
+        <td>${canEdit? `<div class="btnrow">
+            <button class="btn sm" data-edit="${r.id}">Редагувати</button>
+            <button class="btn sm ${r.status==='Активна'?'danger':''}" data-arch="${r.id}" data-to="${r.status==='Активна'?1:0}">${r.status==='Активна'?'Архівувати':'Відновити'}</button>
+          </div>` : ""}</td>
+      </tr>`).join("") : `<tr><td colspan="6"><div class="empty"><div class="big">📕</div>Книг за цим фільтром не знайдено.</div></td></tr>`;
+
+    wrap.querySelectorAll("[data-edit]").forEach(b=> b.addEventListener("click", ()=> openBookModal(parseInt(b.dataset.edit))));
+    wrap.querySelectorAll("[data-arch]").forEach(b=> b.addEventListener("click", ()=>{
+      archiveBook(parseInt(b.dataset.arch), b.dataset.to==="1");
+      toast(b.dataset.to==="1"?"Книгу заархівовано.":"Книгу відновлено.","ok");
+      draw();
+    }));
+  }
+
+  function openBookModal(editId){
+    const book = editId ? q1("SELECT * FROM books WHERE id=?",[editId]) : null;
+    openModal(`
+      <div class="mhead"><h2>${editId?"Редагування книги":"Нова книга"}</h2><button onclick="closeModal()">✕</button></div>
+      <form id="bookForm">
+        <div class="field"><label>Назва *</label><input type="text" name="title" value="${escapeHtml(book?.title||"")}" required></div>
+        <div class="formgrid">
+          <div class="field"><label>Автор *</label><input type="text" name="author" value="${escapeHtml(book?.author||"")}" required></div>
+          <div class="field"><label>ISBN</label><input type="text" name="isbn" value="${escapeHtml(book?.isbn||"")}"></div>
+        </div>
+        <div class="formgrid">
+          <div class="field"><label>Жанр</label>
+            <select name="genre_id">
+              <option value="">— не обрано —</option>
+              ${genres.map(g=>`<option value="${g.id}" ${book&&book.genre_id===g.id?"selected":""}>${escapeHtml(g.name)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>Новий жанр (якщо потрібно)</label><input type="text" name="new_genre" placeholder="напр. Поезія"></div>
+        </div>
+        <div class="formgrid">
+          <div class="field"><label>Видавництво</label><input type="text" name="publisher" value="${escapeHtml(book?.publisher||"")}"></div>
+          <div class="field"><label>Рік видання</label><input type="number" name="publication_year" value="${book?.publication_year||""}"></div>
+        </div>
+        <div class="field"><label>Опис</label><textarea name="description">${escapeHtml(book?.description||"")}</textarea></div>
+        <div class="field"><label>Кількість примірників *</label><input type="number" min="0" name="total_copies" value="${book?book.total_copies:1}" required></div>
+        ${book? `<div class="hint">Видано зараз: ${book.total_copies-book.available_copies} прим. Доступно: ${book.available_copies} прим.</div>`:""}
+        <div class="btnrow" style="margin-top:16px;">
+          <button type="submit" class="btn primary">Зберегти</button>
+          <button type="button" class="btn" onclick="closeModal()">Скасувати</button>
+        </div>
+      </form>
+    `);
+    $("#bookForm").addEventListener("submit",(e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      let genreId = fd.get("genre_id") || null;
+      const newGenre = fd.get("new_genre");
+      if(newGenre && newGenre.trim()) genreId = ensureGenre(newGenre);
+      const data = {
+        title: fd.get("title"), author: fd.get("author"), isbn: fd.get("isbn"),
+        genre_id: genreId, publisher: fd.get("publisher"), publication_year: fd.get("publication_year")||null,
+        description: fd.get("description"), total_copies: fd.get("total_copies"),
+      };
+      const res = saveBook(data, editId);
+      if(res.ok){ closeModal(); toast(res.msg,"ok"); draw(); } else { toast(res.msg,"err"); }
+    });
+  }
+  window.__openBookModal = openBookModal;
+
+  wrap.innerHTML = `
+    <div class="section-head">
+      <div><div class="kicker">Каталог</div><h1>Книги</h1><div class="desc">Облік назв, примірників та жанрів.</div></div>
+      ${canEdit? `<button class="btn primary" id="addBookBtn">+ Додати книгу</button>` : ""}
+    </div>
+    <div class="searchbar">
+      <input type="text" id="fSearch" placeholder="Пошук за назвою, автором, ISBN…">
+      <select id="fGenre"><option value="">Усі жанри</option>${genres.map(g=>`<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("")}</select>
+      <select id="fStatus"><option value="active">Активні</option><option value="archived">Архівні</option><option value="">Усі</option></select>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Книга</th><th>Жанр</th><th>ISBN</th><th>Наявність</th><th>Статус</th><th></th></tr></thead>
+        <tbody id="booksBody"></tbody>
+      </table>
+    </div>
+  `;
+  wrap.querySelector("#fSearch").addEventListener("input", e=>{ filters.search=e.target.value; draw(); });
+  wrap.querySelector("#fGenre").addEventListener("change", e=>{ filters.genre=e.target.value; draw(); });
+  wrap.querySelector("#fStatus").addEventListener("change", e=>{ filters.status=e.target.value; draw(); });
+  if(canEdit) wrap.querySelector("#addBookBtn").addEventListener("click", ()=> openBookModal(null));
+  draw();
+  return wrap;
+}
+
+/* ============================== USERS ============================== */
+function viewUsers(){
+  const actorRole = State.currentUser.role;
+  const wrap = el(`<div></div>`);
+  const classes = q("SELECT * FROM classes ORDER BY name");
+  let filters = {search:"", role:"", status:""};
+
+  function draw(){
+    let sql = "SELECT u.*, c.name AS class_name FROM users u LEFT JOIN classes c ON c.id=u.class_id WHERE 1=1";
+    const params=[];
+    if(filters.search){ sql += " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.login LIKE ?)"; const s=`%${filters.search}%`; params.push(s,s,s); }
+    if(filters.role){ sql += " AND u.role=?"; params.push(filters.role); }
+    if(filters.status){ sql += " AND u.status=?"; params.push(filters.status); }
+    sql += " ORDER BY u.last_name";
+    const rows = q(sql, params);
+    wrap.querySelector("#usersBody").innerHTML = rows.length ? rows.map(u=>{
+      const borrowed = currentBorrowedCount(u.id);
+      return `<tr>
+        <td><div class="book-title">${escapeHtml(userFullName(u))}</div><div class="book-sub stamp">@${escapeHtml(u.login)}</div></td>
+        <td><span class="badge accent">${roleLabel(u.role)}</span></td>
+        <td>${escapeHtml(u.class_name||"—")}</td>
+        <td class="stamp">${borrowed}</td>
+        <td>${u.status==="Активний"?'<span class="badge ok">Активний</span>':'<span class="badge neutral">Неактивний</span>'}</td>
+        <td><div class="btnrow">
+          <button class="btn sm" data-view="${u.id}">Картка</button>
+          <button class="btn sm" data-edit="${u.id}">Редагувати</button>
+          <button class="btn sm ${u.status==='Активний'?'danger':''}" data-tog="${u.id}" data-to="${u.status==='Активний'?'Неактивний':'Активний'}">${u.status==='Активний'?'Деактивувати':'Відновити'}</button>
+        </div></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="6"><div class="empty"><div class="big">🧑‍🤝‍🧑</div>Користувачів не знайдено.</div></td></tr>`;
+
+    wrap.querySelectorAll("[data-edit]").forEach(b=> b.addEventListener("click", ()=> openUserModal(parseInt(b.dataset.edit))));
+    wrap.querySelectorAll("[data-view]").forEach(b=> b.addEventListener("click", ()=> openUserCard(parseInt(b.dataset.view))));
+    wrap.querySelectorAll("[data-tog]").forEach(b=> b.addEventListener("click", ()=>{
+      setUserStatus(parseInt(b.dataset.tog), b.dataset.to);
+      toast("Статус користувача оновлено.","ok"); draw();
+    }));
+  }
+
+  function openUserCard(id){
+    const u = q1("SELECT * FROM users WHERE id=?",[id]);
+    const active = q(`SELECT br.*, b.title FROM borrowings br JOIN books b ON b.id=br.book_id WHERE br.user_id=? AND br.status IN ('Видано','Частково повернено') ORDER BY br.borrowed_at DESC`, [id]);
+    const hist = q(`SELECT br.*, b.title FROM borrowings br JOIN books b ON b.id=br.book_id WHERE br.user_id=? ORDER BY br.borrowed_at DESC LIMIT 30`, [id]);
+    openModal(`
+      <div class="mhead"><h2>${escapeHtml(userFullName(u))}</h2><button onclick="closeModal()">✕</button></div>
+      <p class="hint">@${escapeHtml(u.login)} · ${roleLabel(u.role)} · Клас: ${escapeHtml(className(u.class_id))}</p>
+      <h3 style="margin-top:14px;">Поточні книги</h3>
+      ${active.length? `<div class="tablewrap"><table><thead><tr><th>Книга</th><th>К-сть</th><th>До</th><th>Статус</th></tr></thead><tbody>
+        ${active.map(b=>`<tr><td>${escapeHtml(b.title)}</td><td class="stamp">${b.quantity-b.returned_quantity}</td><td class="stamp">${fmtDate(b.due_at)}</td><td>${isOverdue(b)?'<span class="badge warn">Прострочено</span>':'<span class="badge ok">Видано</span>'}</td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty">Немає книг на руках.</div>`}
+      <h3 style="margin-top:16px;">Історія (останні)</h3>
+      ${hist.length? `<div class="tablewrap"><table><thead><tr><th>Книга</th><th>Видано</th><th>Статус</th></tr></thead><tbody>
+        ${hist.map(b=>`<tr><td>${escapeHtml(b.title)}</td><td class="stamp">${fmtDate(b.borrowed_at)}</td><td>${displayStatus(b)}</td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="empty">Історія порожня.</div>`}
+    `);
+  }
+
+  function openUserModal(editId){
+    const u = editId ? q1("SELECT * FROM users WHERE id=?",[editId]) : null;
+    const canSetRole = actorRole==="admin";
+    openModal(`
+      <div class="mhead"><h2>${editId?"Редагування користувача":"Новий користувач"}</h2><button onclick="closeModal()">✕</button></div>
+      <form id="userForm">
+        <div class="formgrid">
+          <div class="field"><label>Ім'я *</label><input type="text" name="first_name" value="${escapeHtml(u?.first_name||"")}" required></div>
+          <div class="field"><label>Прізвище *</label><input type="text" name="last_name" value="${escapeHtml(u?.last_name||"")}" required></div>
+        </div>
+        <div class="formgrid">
+          <div class="field"><label>Логін *</label><input type="text" name="login" value="${escapeHtml(u?.login||"")}" required></div>
+          <div class="field"><label>Пароль ${editId?"(залиште порожнім, щоб не змінювати)":""}</label><input type="password" name="password" autocomplete="new-password"></div>
+        </div>
+        <div class="formgrid">
+          <div class="field"><label>Роль</label>
+            <select name="role" ${canSetRole?"":"disabled"}>
+              <option value="teacher" ${(!u||u.role==='teacher')?"selected":""}>Вчитель</option>
+              <option value="librarian" ${u&&u.role==='librarian'?"selected":""}>Бібліотекар</option>
+              ${canSetRole? `<option value="admin" ${u&&u.role==='admin'?"selected":""}>Адміністратор</option>`:""}
+            </select>
+            ${!canSetRole? `<div class="hint">Лише адміністратор може змінювати роль.</div>`:""}
+          </div>
+          <div class="field"><label>Клас</label>
+            <select name="class_id">
+              <option value="">— не прив'язано —</option>
+              ${classes.map(c=>`<option value="${c.id}" ${u&&u.class_id===c.id?"selected":""}>${escapeHtml(c.name)}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="btnrow" style="margin-top:16px;">
+          <button type="submit" class="btn primary">Зберегти</button>
+          <button type="button" class="btn" onclick="closeModal()">Скасувати</button>
+        </div>
+      </form>
+    `);
+    $("#userForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = { first_name: fd.get("first_name"), last_name: fd.get("last_name"), login: fd.get("login"),
+        password: fd.get("password")||"", role: fd.get("role"), class_id: fd.get("class_id")||null };
+      const res = await saveUser(data, editId, actorRole);
+      if(res.ok){ closeModal(); toast(res.msg,"ok"); draw(); } else { toast(res.msg,"err"); }
+    });
+  }
+
+  wrap.innerHTML = `
+    <div class="section-head">
+      <div><div class="kicker">Люди</div><h1>Користувачі</h1><div class="desc">Облікові записи вчителів, бібліотекарів та адміністраторів.</div></div>
+      <button class="btn primary" id="addUserBtn">+ Додати користувача</button>
+    </div>
+    <div class="searchbar">
+      <input type="text" id="fSearch" placeholder="Пошук за іменем або логіном…">
+      <select id="fRole"><option value="">Усі ролі</option><option value="teacher">Вчитель</option><option value="librarian">Бібліотекар</option><option value="admin">Адміністратор</option></select>
+      <select id="fStatus"><option value="">Усі статуси</option><option value="Активний">Активний</option><option value="Неактивний">Неактивний</option></select>
+    </div>
+    <div class="tablewrap">
+      <table><thead><tr><th>Користувач</th><th>Роль</th><th>Клас</th><th>Книг на руках</th><th>Статус</th><th></th></tr></thead><tbody id="usersBody"></tbody></table>
+    </div>
+  `;
+  wrap.querySelector("#fSearch").addEventListener("input", e=>{ filters.search=e.target.value; draw(); });
+  wrap.querySelector("#fRole").addEventListener("change", e=>{ filters.role=e.target.value; draw(); });
+  wrap.querySelector("#fStatus").addEventListener("change", e=>{ filters.status=e.target.value; draw(); });
+  wrap.querySelector("#addUserBtn").addEventListener("click", ()=> openUserModal(null));
+  draw();
+  return wrap;
+}
+
+/* ============================== CLASSES (admin only) ============================== */
+function viewClasses(){
+  const wrap = el(`<div></div>`);
+  const teachers = q("SELECT * FROM users WHERE role IN ('teacher','librarian') ORDER BY last_name");
+
+  function draw(){
+    const rows = q("SELECT * FROM classes ORDER BY name");
+    wrap.querySelector("#classesBody").innerHTML = rows.length? rows.map(c=>{
+      const cnt = q1("SELECT COALESCE(SUM(br.quantity),0) c FROM users u LEFT JOIN borrowings br ON br.user_id=u.id WHERE u.class_id=?", [c.id]).c;
+      const teacher = c.teacher_id ? q1("SELECT * FROM users WHERE id=?",[c.teacher_id]) : null;
+      return `<tr>
+        <td class="book-title">${escapeHtml(c.name)}</td>
+        <td>${escapeHtml(c.school_year)}</td>
+        <td>${teacher? escapeHtml(userFullName(teacher)) : "—"}</td>
+        <td class="stamp">${cnt}</td>
+        <td>${c.status==="Активний"?'<span class="badge ok">Активний</span>':'<span class="badge neutral">Архівний</span>'}</td>
+        <td><div class="btnrow"><button class="btn sm" data-edit="${c.id}">Редагувати</button></div></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="6"><div class="empty"><div class="big">🏫</div>Класів ще немає.</div></td></tr>`;
+    wrap.querySelectorAll("[data-edit]").forEach(b=> b.addEventListener("click", ()=> openClassModal(parseInt(b.dataset.edit))));
+  }
+
+  function openClassModal(editId){
+    const c = editId? q1("SELECT * FROM classes WHERE id=?",[editId]) : null;
+    openModal(`
+      <div class="mhead"><h2>${editId?"Редагування класу":"Новий клас"}</h2><button onclick="closeModal()">✕</button></div>
+      <form id="classForm">
+        <div class="formgrid">
+          <div class="field"><label>Назва класу *</label><input type="text" name="name" placeholder="напр. 7-А" value="${escapeHtml(c?.name||"")}" required></div>
+          <div class="field"><label>Навчальний рік *</label><input type="text" name="school_year" placeholder="2026/2027" value="${escapeHtml(c?.school_year||"2026/2027")}" required></div>
+        </div>
+        <div class="field"><label>Класний керівник</label>
+          <select name="teacher_id"><option value="">— не призначено —</option>
+            ${teachers.map(t=>`<option value="${t.id}" ${c&&c.teacher_id===t.id?"selected":""}>${escapeHtml(userFullName(t))}</option>`).join("")}
+          </select>
+        </div>
+        ${editId? `<div class="field"><label>Статус</label><select name="status"><option value="Активний" ${c.status==='Активний'?"selected":""}>Активний</option><option value="Архівний" ${c.status==='Архівний'?"selected":""}>Архівний</option></select></div>`:""}
+        <div class="btnrow" style="margin-top:16px;">
+          <button type="submit" class="btn primary">Зберегти</button>
+          <button type="button" class="btn" onclick="closeModal()">Скасувати</button>
+        </div>
+      </form>
+    `);
+    $("#classForm").addEventListener("submit",(e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = {name:fd.get("name"), school_year:fd.get("school_year"), teacher_id:fd.get("teacher_id")||null, status:fd.get("status")};
+      const res = saveClass(data, editId);
+      if(res.ok){ closeModal(); toast(res.msg,"ok"); draw(); } else { toast(res.msg,"err"); }
+    });
+  }
+
+  wrap.innerHTML = `
+    <div class="section-head">
+      <div><div class="kicker">Довідник</div><h1>Класи</h1><div class="desc">Класи та статистика взятих книг по кожному з них.</div></div>
+      <button class="btn primary" id="addClassBtn">+ Додати клас</button>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Клас</th><th>Навч. рік</th><th>Класний керівник</th><th>Взято книг</th><th>Статус</th><th></th></tr></thead><tbody id="classesBody"></tbody></table></div>
+  `;
+  wrap.querySelector("#addClassBtn").addEventListener("click", ()=> openClassModal(null));
+  draw();
+  return wrap;
+}
+
+/* ============================== BORROW & RETURN (librarian/admin) ============================== */
+function viewBorrow(){
+  const wrap = el(`<div></div>`);
+  const users = q("SELECT * FROM users WHERE status='Активний' ORDER BY last_name");
+  const maxBooks = getSetting("max_books_per_user","10");
+  const loanDays = getSetting("default_loan_days","14");
+
+  function drawActive(){
+    const rows = q(`SELECT br.*, u.first_name,u.last_name,u.class_id, b.title FROM borrowings br
+                     JOIN users u ON u.id=br.user_id JOIN books b ON b.id=br.book_id
+                     WHERE br.status IN ('Видано','Частково повернено') ORDER BY br.borrowed_at DESC`);
+    wrap.querySelector("#activeBody").innerHTML = rows.length? rows.map(b=>{
+      const remaining = b.quantity - b.returned_quantity;
+      const overdue = isOverdue(b);
+      return `<tr>
+        <td>${escapeHtml(b.last_name+" "+b.first_name)}<div class="book-sub">${escapeHtml(className(b.class_id))}</div></td>
+        <td>${escapeHtml(b.title)}</td>
+        <td class="stamp">${remaining} з ${b.quantity}</td>
+        <td class="stamp">${fmtDate(b.borrowed_at)}</td>
+        <td class="stamp">${fmtDate(b.due_at)}</td>
+        <td>${overdue?'<span class="badge warn">Прострочено</span>': b.status==='Частково повернено' ? '<span class="badge accent">Частково</span>' : '<span class="badge ok">Видано</span>'}</td>
+        <td><button class="btn sm primary" data-ret="${b.id}" data-rem="${remaining}" data-title="${escapeHtml(b.title)}">Повернути</button></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="7"><div class="empty"><div class="big">✅</div>Немає активних видач.</div></td></tr>`;
+    wrap.querySelectorAll("[data-ret]").forEach(btn=> btn.addEventListener("click", ()=> openReturnModal(parseInt(btn.dataset.ret), parseInt(btn.dataset.rem), btn.dataset.title)));
+  }
+
+  function openReturnModal(id, remaining, title){
+    openModal(`
+      <div class="mhead"><h2>Повернення книги</h2><button onclick="closeModal()">✕</button></div>
+      <p class="hint">«${escapeHtml(title)}» — видано на руках: ${remaining} прим.</p>
+      <form id="retForm">
+        <div class="field"><label>Кількість до повернення</label><input type="number" name="qty" min="1" max="${remaining}" value="${remaining}" required></div>
+        <div class="btnrow"><button type="submit" class="btn primary">Підтвердити повернення</button><button type="button" class="btn" onclick="closeModal()">Скасувати</button></div>
+      </form>
+    `);
+    $("#retForm").addEventListener("submit",(e)=>{
+      e.preventDefault();
+      const qty = new FormData(e.target).get("qty");
+      const res = returnBorrowing(id, qty);
+      if(res.ok){ closeModal(); toast(res.msg,"ok"); drawActive(); } else toast(res.msg,"err");
+    });
+  }
+
+  function openIssueModal(){
+    const books = q("SELECT * FROM books WHERE status='Активна' AND available_copies>0 ORDER BY title");
+    openModal(`
+      <div class="mhead"><h2>Видача книги</h2><button onclick="closeModal()">✕</button></div>
+      <form id="issueForm">
+        <div class="field"><label>Користувач (вчитель) *</label>
+          <select name="user_id" required><option value="">— оберіть —</option>
+            ${users.filter(u=>u.role!=='admin'||true).map(u=>`<option value="${u.id}">${escapeHtml(userFullName(u))} (${roleLabel(u.role)}) — на руках: ${currentBorrowedCount(u.id)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field"><label>Книга *</label>
+          <select name="book_id" id="bookSelect" required><option value="">— оберіть —</option>
+            ${books.map(b=>`<option value="${b.id}" data-avail="${b.available_copies}">${escapeHtml(b.title)} — доступно ${b.available_copies}</option>`).join("")}
+          </select>
+        </div>
+        <div class="formgrid">
+          <div class="field"><label>Кількість примірників</label><input type="number" name="quantity" min="1" value="1" required></div>
+          <div class="field"><label>Строк (днів)</label><input type="number" name="days" min="1" value="${loanDays}" required></div>
+        </div>
+        <div class="hint">Ліміт на користувача: ${maxBooks} книг. Стандартний строк: ${loanDays} днів.</div>
+        <div class="btnrow" style="margin-top:14px;"><button type="submit" class="btn primary">Видати</button><button type="button" class="btn" onclick="closeModal()">Скасувати</button></div>
+      </form>
+    `);
+    $("#issueForm").addEventListener("submit",(e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const res = issueBorrowing(fd.get("user_id"), fd.get("book_id"), fd.get("quantity"), fd.get("days"));
+      if(res.ok){ closeModal(); toast(res.msg,"ok"); drawActive(); } else toast(res.msg,"err");
+    });
+  }
+
+  wrap.innerHTML = `
+    <div class="section-head">
+      <div><div class="kicker">Операції</div><h1>Видача та повернення</h1><div class="desc">Оформлення видачі книг користувачам та реєстрація повернень.</div></div>
+      <button class="btn primary" id="issueBtn">+ Видати книгу</button>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Користувач</th><th>Книга</th><th>Залишок</th><th>Видано</th><th>Повернути до</th><th>Статус</th><th></th></tr></thead><tbody id="activeBody"></tbody></table></div>
+  `;
+  wrap.querySelector("#issueBtn").addEventListener("click", openIssueModal);
+  drawActive();
+  return wrap;
+}
+
+/* ============================== OVERDUE ============================== */
+function viewOverdue(){
+  const wrap = el(`<div></div>`);
+  const rows = q(`SELECT br.*, u.first_name,u.last_name,u.class_id, b.title FROM borrowings br
+                   JOIN users u ON u.id=br.user_id JOIN books b ON b.id=br.book_id
+                   WHERE br.status IN ('Видано','Частково повернено')`).filter(isOverdue)
+                  .sort((a,b)=> a.due_at.localeCompare(b.due_at));
+  wrap.innerHTML = `
+    <div class="section-head"><div><div class="kicker">Контроль</div><h1>Прострочені книги</h1><div class="desc">Список видач, строк повернення яких минув.</div></div></div>
+    <div class="tablewrap"><table><thead><tr><th>Користувач</th><th>Клас</th><th>Книга</th><th>К-сть</th><th>Видано</th><th>Повернути до</th><th>Днів прострочення</th></tr></thead><tbody>
+      ${rows.length? rows.map(b=>`<tr>
+        <td>${escapeHtml(b.last_name+" "+b.first_name)}</td>
+        <td>${escapeHtml(className(b.class_id))}</td>
+        <td>${escapeHtml(b.title)}</td>
+        <td class="stamp">${b.quantity-b.returned_quantity}</td>
+        <td class="stamp">${fmtDate(b.borrowed_at)}</td>
+        <td class="stamp">${fmtDate(b.due_at)}</td>
+        <td><span class="badge warn">${daysDiff(b.due_at, todayISO())} дн.</span></td>
+      </tr>`).join("") : `<tr><td colspan="7"><div class="empty"><div class="big">🎉</div>Прострочених книг немає.</div></td></tr>`}
+    </tbody></table></div>
+  `;
+  return wrap;
+}
+
+/* ============================== HISTORY (librarian/admin: all, teacher: own) ============================== */
+function viewHistory(){
+  const wrap = el(`<div></div>`);
+  const isTeacher = State.currentUser.role==="teacher";
+  const rows = isTeacher
+    ? q(`SELECT br.*, b.title, b.author FROM borrowings br JOIN books b ON b.id=br.book_id WHERE br.user_id=? ORDER BY br.borrowed_at DESC`, [State.currentUser.id])
+    : q(`SELECT br.*, b.title, u.first_name,u.last_name,u.class_id FROM borrowings br JOIN books b ON b.id=br.book_id JOIN users u ON u.id=br.user_id ORDER BY br.borrowed_at DESC LIMIT 300`);
+  wrap.innerHTML = `
+    <div class="section-head"><div><div class="kicker">Архів</div><h1>Історія видач${isTeacher?" — мої книги за весь час":""}</h1></div></div>
+    <div class="tablewrap"><table><thead><tr>${isTeacher?"":"<th>Користувач</th><th>Клас</th>"}<th>Книга</th><th>К-сть</th><th>Видано</th><th>Повернути до</th><th>Повернено</th><th>Статус</th></tr></thead><tbody>
+      ${rows.length? rows.map(b=>`<tr>
+        ${isTeacher?"":`<td>${escapeHtml(b.last_name+" "+b.first_name)}</td><td>${escapeHtml(className(b.class_id))}</td>`}
+        <td>${escapeHtml(b.title)}</td>
+        <td class="stamp">${b.quantity}</td>
+        <td class="stamp">${fmtDate(b.borrowed_at)}</td>
+        <td class="stamp">${fmtDate(b.due_at)}</td>
+        <td class="stamp">${b.returned_at?fmtDate(b.returned_at):"—"}</td>
+        <td>${statusBadge(displayStatus(b))}</td>
+      </tr>`).join("") : `<tr><td colspan="${isTeacher?6:8}"><div class="empty"><div class="big">🕘</div>Історія поки порожня.</div></td></tr>`}
+    </tbody></table></div>
+  `;
+  return wrap;
+}
+function statusBadge(s){
+  if(s==="Прострочено") return '<span class="badge warn">Прострочено</span>';
+  if(s==="Повернено") return '<span class="badge ok">Повернено</span>';
+  if(s==="Частково повернено") return '<span class="badge accent">Частково</span>';
+  return '<span class="badge neutral">Видано</span>';
+}
+
+/* ============================== STATISTICS ============================== */
+function viewStats(){
+  const wrap = el(`<div></div>`);
+  let period = "month";
+  function periodBounds(p){
+    const t = todayISO();
+    if(p==="today") return [t,t];
+    if(p==="week") return [addDaysISO(t,-7), t];
+    if(p==="month") return [addDaysISO(t,-30), t];
+    if(p==="year") return [addDaysISO(t,-365), t];
+    return [wrap.querySelector("#fromD")?.value||addDaysISO(t,-30), wrap.querySelector("#toD")?.value||t];
+  }
+  function draw(){
+    const [from,to] = periodBounds(period);
+    const issuedInPeriod = q1("SELECT COUNT(*) c FROM borrowings WHERE borrowed_at BETWEEN ? AND ?", [from,to]).c;
+    const returnedInPeriod = q1("SELECT COUNT(*) c FROM borrowings WHERE returned_at BETWEEN ? AND ?", [from,to]).c;
+    const byTeacher = q(`SELECT u.last_name,u.first_name, COALESCE(SUM(br.quantity),0) qty FROM users u
+       LEFT JOIN borrowings br ON br.user_id=u.id AND br.borrowed_at BETWEEN ? AND ?
+       WHERE u.role='teacher' GROUP BY u.id ORDER BY qty DESC`, [from,to]);
+    const byClass = q(`SELECT c.name, COALESCE(SUM(br.quantity),0) qty FROM classes c
+       LEFT JOIN users u ON u.class_id=c.id LEFT JOIN borrowings br ON br.user_id=u.id AND br.borrowed_at BETWEEN ? AND ?
+       GROUP BY c.id ORDER BY qty DESC`, [from,to]);
+    const popular = q(`SELECT b.title,b.author, COALESCE(SUM(br.quantity),0) qty FROM borrowings br JOIN books b ON b.id=br.book_id
+       WHERE br.borrowed_at BETWEEN ? AND ? GROUP BY br.book_id ORDER BY qty DESC LIMIT 8`, [from,to]);
+
+    wrap.querySelector("#statsBody").innerHTML = `
+      <div class="grid cols-2" style="margin-bottom:18px;">
+        <div class="stat"><div class="num">${issuedInPeriod}</div><div class="lbl">Видач за період (${fmtDate(from)} – ${fmtDate(to)})</div></div>
+        <div class="stat"><div class="num">${returnedInPeriod}</div><div class="lbl">Повернень за період</div></div>
+      </div>
+      <div class="grid cols-3">
+        <div class="card"><h3>Найпопулярніші книги</h3>${popular.length?`<div class="tablewrap"><table><tbody>${popular.map(p=>`<tr><td>${escapeHtml(p.title)}</td><td class="stamp">${p.qty}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Немає даних.</div>`}</div>
+        <div class="card"><h3>За класами</h3>${byClass.length?`<div class="tablewrap"><table><tbody>${byClass.map(p=>`<tr><td>${escapeHtml(p.name)}</td><td class="stamp">${p.qty}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Немає даних.</div>`}</div>
+        <div class="card"><h3>За вчителями</h3>${byTeacher.length?`<div class="tablewrap"><table><tbody>${byTeacher.map(p=>`<tr><td>${escapeHtml(p.last_name+" "+p.first_name)}</td><td class="stamp">${p.qty}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Немає даних.</div>`}</div>
+      </div>
+    `;
+  }
+  wrap.innerHTML = `
+    <div class="section-head"><div><div class="kicker">Аналітика</div><h1>Статистика</h1><div class="desc">Показники бібліотеки за обраний період.</div></div></div>
+    <div class="tabs" id="periodTabs">
+      ${[["today","Сьогодні"],["week","Тиждень"],["month","Місяць"],["year","Навч. рік"],["custom","Довільний період"]].map(([k,l])=>`<button data-p="${k}" class="${k==='month'?'active':''}">${l}</button>`).join("")}
+    </div>
+    <div id="customRange" style="display:none; margin-bottom:14px;" class="formgrid">
+      <div class="field"><label>Від</label><input type="date" id="fromD" value="${addDaysISO(todayISO(),-30)}"></div>
+      <div class="field"><label>До</label><input type="date" id="toD" value="${todayISO()}"></div>
+    </div>
+    <div id="statsBody"></div>
+  `;
+  wrap.querySelectorAll("#periodTabs button").forEach(b=> b.addEventListener("click", ()=>{
+    wrap.querySelectorAll("#periodTabs button").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active"); period = b.dataset.p;
+    wrap.querySelector("#customRange").style.display = period==="custom" ? "grid" : "none";
+    draw();
+  }));
+  const fromEl = wrap.querySelector("#fromD"), toEl = wrap.querySelector("#toD");
+  if(fromEl) fromEl.addEventListener("change", draw);
+  if(toEl) toEl.addEventListener("change", draw);
+  draw();
+  return wrap;
+}
+
+/* ============================== CSV EXPORT ============================== */
+function toCsv(headers, rows){
+  const esc = v => {
+    const s = v===null||v===undefined ? "" : String(v);
+    return /[",\n;]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  const lines = [headers.map(esc).join(";")];
+  rows.forEach(r=> lines.push(r.map(esc).join(";")));
+  return "\uFEFF" + lines.join("\r\n");
+}
+async function exportCsv(filename, headers, rows){
+  const csv = toCsv(headers, rows);
+  try{
+    const downloads = await claude.use("downloads");
+    if(!downloads){ toast("Завантаження файлів недоступне в цьому перегляді.","err"); return; }
+    await downloads.save({filename, data: csv});
+    toast("Файл збережено.","ok");
+  }catch(e){
+    if(e && e.code === "declined"){ /* user cancelled, no toast needed */ }
+    else { console.warn(e); toast("Не вдалося зберегти файл.","err"); }
+  }
+}
+
+/* ============================== REPORTS ============================== */
+function viewReports(){
+  const wrap = el(`<div></div>`);
+  const issuedRows = q(`SELECT u.last_name,u.first_name,c.name AS class_name, b.title, br.quantity, br.borrowed_at, br.due_at, br.status, br.returned_quantity
+     FROM borrowings br JOIN users u ON u.id=br.user_id JOIN books b ON b.id=br.book_id LEFT JOIN classes c ON c.id=u.class_id
+     ORDER BY br.borrowed_at DESC`);
+  const classRows = q(`SELECT c.name, COALESCE(SUM(br.quantity),0) qty FROM classes c
+     LEFT JOIN users u ON u.class_id=c.id LEFT JOIN borrowings br ON br.user_id=u.id GROUP BY c.id ORDER BY qty DESC`);
+
+  wrap.innerHTML = `
+    <div class="section-head"><div><div class="kicker">Документи</div><h1>Звіти</h1><div class="desc">Формування звітів по видачах та класах з експортом у CSV (сумісний з Excel).</div></div></div>
+    <div class="card" style="margin-bottom:18px;">
+      <div class="section-head"><h3>Звіт по виданих книгах</h3><button class="btn accent sm" id="exp1">⭳ Експорт CSV</button></div>
+      <div class="tablewrap"><table><thead><tr><th>Користувач</th><th>Клас</th><th>Книга</th><th>К-сть</th><th>Дата видачі</th><th>Статус</th></tr></thead><tbody>
+        ${issuedRows.slice(0,200).map(r=>`<tr><td>${escapeHtml(r.last_name+" "+r.first_name)}</td><td>${escapeHtml(r.class_name||"—")}</td><td>${escapeHtml(r.title)}</td><td class="stamp">${r.quantity}</td><td class="stamp">${fmtDate(r.borrowed_at)}</td><td>${statusBadge(isOverdue(r)?"Прострочено":r.status)}</td></tr>`).join("")}
+      </tbody></table></div>
+      ${issuedRows.length>200? `<div class="hint">Показано перші 200 із ${issuedRows.length}. Повний список — в експорті CSV.</div>`:""}
+    </div>
+    <div class="card">
+      <div class="section-head"><h3>Звіт по класах</h3><button class="btn accent sm" id="exp2">⭳ Експорт CSV</button></div>
+      <div class="tablewrap"><table><thead><tr><th>Клас</th><th>Кількість взятих книг</th></tr></thead><tbody>
+        ${classRows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td class="stamp">${r.qty}</td></tr>`).join("")}
+      </tbody></table></div>
+    </div>
+  `;
+  wrap.querySelector("#exp1").addEventListener("click", ()=>{
+    exportCsv(`zvit-vydachi-${todayISO()}.csv`,
+      ["Користувач","Клас","Книга","Кількість","Дата видачі","Статус"],
+      issuedRows.map(r=>[r.last_name+" "+r.first_name, r.class_name||"", r.title, r.quantity, fmtDate(r.borrowed_at), isOverdue(r)?"Прострочено":r.status]));
+  });
+  wrap.querySelector("#exp2").addEventListener("click", ()=>{
+    exportCsv(`zvit-klasy-${todayISO()}.csv`, ["Клас","Кількість взятих книг"], classRows.map(r=>[r.name, r.qty]));
+  });
+  return wrap;
+}
+
+/* ============================== AUDIT LOG (admin) ============================== */
+function viewAudit(){
+  const wrap = el(`<div></div>`);
+  const rows = q(`SELECT al.*, u.last_name,u.first_name FROM audit_log al LEFT JOIN users u ON u.id=al.user_id ORDER BY al.id DESC LIMIT 400`);
+  wrap.innerHTML = `
+    <div class="section-head">
+      <div><div class="kicker">Контроль</div><h1>Журнал дій</h1><div class="desc">Історія системних дій для контролю та пошуку помилок.</div></div>
+      <button class="btn accent sm" id="expAudit">⭳ Експорт CSV</button>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Дата й час</th><th>Користувач</th><th>Дія</th><th>Опис</th></tr></thead><tbody>
+      ${rows.length? rows.map(r=>`<tr><td class="stamp">${new Date(r.created_at).toLocaleString("uk-UA")}</td><td>${r.user_id? escapeHtml(r.last_name+" "+r.first_name):"Система"}</td><td>${escapeHtml(r.action)}</td><td>${escapeHtml(r.description||"")}</td></tr>`).join("") : `<tr><td colspan="4"><div class="empty">Журнал порожній.</div></td></tr>`}
+    </tbody></table></div>
+  `;
+  wrap.querySelector("#expAudit").addEventListener("click", ()=>{
+    exportCsv(`zhurnal-diy-${todayISO()}.csv`, ["Дата й час","Користувач","Дія","Опис"],
+      rows.map(r=>[new Date(r.created_at).toLocaleString("uk-UA"), r.user_id? (r.last_name+" "+r.first_name):"Система", r.action, r.description||""]));
+  });
+  return wrap;
+}
+
+/* ============================== SETTINGS (admin) ============================== */
+function viewSettings(){
+  const wrap = el(`<div></div>`);
+  wrap.innerHTML = `
+    <div class="section-head"><div><div class="kicker">Система</div><h1>Налаштування</h1><div class="desc">Глобальні параметри роботи бібліотеки.</div></div></div>
+    <div class="card" style="max-width:460px;">
+      <form id="setForm">
+        <div class="field"><label>Максимальна кількість книг на одного користувача</label><input type="number" min="1" name="max_books_per_user" value="${getSetting('max_books_per_user','10')}"></div>
+        <div class="field"><label>Стандартний строк повернення (днів)</label><input type="number" min="1" name="default_loan_days" value="${getSetting('default_loan_days','14')}"></div>
+        <div class="field"><label>Назва навчального закладу</label><input type="text" name="school_name" value="${escapeHtml(getSetting('school_name',''))}"></div>
+        <button type="submit" class="btn primary">Зберегти налаштування</button>
+      </form>
+    </div>
+    <div class="card" style="max-width:460px; margin-top:16px;">
+      <h3 style="margin-bottom:8px;">Резервне копіювання</h3>
+      <p class="hint" style="margin-bottom:12px;">Завантажте повну копію бази даних (книги, користувачі, класи, історія видач, налаштування, журнал дій) у форматі .sqlite.</p>
+      <button class="btn accent" id="backupBtn">⭳ Завантажити резервну копію</button>
+    </div>
+  `;
+  wrap.querySelector("#setForm").addEventListener("submit", (e)=>{
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    setSetting("max_books_per_user", fd.get("max_books_per_user"));
+    setSetting("default_loan_days", fd.get("default_loan_days"));
+    setSetting("school_name", fd.get("school_name"));
+    logAction("Зміна налаштувань","settings",null,"Оновлено системні налаштування.");
+    toast("Налаштування збережено.","ok");
+  });
+  wrap.querySelector("#backupBtn").addEventListener("click", async ()=>{
+    try{
+      const backup = {
+        exported_at: nowISO(),
+        genres: q("SELECT * FROM genres"),
+        classes: q("SELECT * FROM classes"),
+        users: q("SELECT * FROM users"),
+        books: q("SELECT * FROM books"),
+        borrowings: q("SELECT * FROM borrowings"),
+        audit_log: q("SELECT * FROM audit_log"),
+        settings: q("SELECT * FROM settings"),
+      };
+      const downloads = await claude.use("downloads");
+      if(!downloads){ toast("Завантаження недоступне в цьому перегляді.","err"); return; }
+      await downloads.save({filename:`library-backup-${todayISO()}.json`, data: JSON.stringify(backup, null, 2)});
+      toast("Резервну копію збережено.","ok");
+    }catch(e){ if(!(e&&e.code==="declined")) toast("Не вдалося зберегти резервну копію.","err"); }
+  });
+  return wrap;
+}
+
+/* ============================== TEACHER: CATALOG ============================== */
+function viewCatalog(){
+  const wrap = el(`<div></div>`);
+  const genres = q("SELECT * FROM genres ORDER BY name");
+  let filters = {search:"", genre:"", avail:""};
+
+  function draw(){
+    let sql = "SELECT b.*, g.name AS genre_name FROM books b LEFT JOIN genres g ON g.id=b.genre_id WHERE b.status='Активна'";
+    const params=[];
+    if(filters.search){ sql+=" AND (b.title LIKE ? OR b.author LIKE ? OR b.isbn LIKE ?)"; const s=`%${filters.search}%`; params.push(s,s,s); }
+    if(filters.genre){ sql+=" AND b.genre_id=?"; params.push(filters.genre); }
+    if(filters.avail==="yes"){ sql+=" AND b.available_copies>0"; }
+    sql += " ORDER BY b.title";
+    const rows = q(sql, params);
+    const myCount = currentBorrowedCount(State.currentUser.id);
+    const maxBooks = parseInt(getSetting("max_books_per_user","10"),10);
+
+    wrap.querySelector("#catBody").innerHTML = rows.length ? rows.map(r=>`
+      <tr>
+        <td><div class="book-title">${escapeHtml(r.title)}</div><div class="book-sub">${escapeHtml(r.author)}${r.publication_year?`, ${r.publication_year}`:""} · ${escapeHtml(r.genre_name||"без жанру")}</div></td>
+        <td><span class="avail">${r.available_copies} з ${r.total_copies}</span><div class="progress"><div style="width:${r.total_copies?(100*r.available_copies/r.total_copies):0}%"></div></div></td>
+        <td><button class="btn sm primary" data-take="${r.id}" data-title="${escapeHtml(r.title)}" data-avail="${r.available_copies}" ${r.available_copies<1||myCount>=maxBooks?"disabled":""}>Взяти</button></td>
+      </tr>`).join("") : `<tr><td colspan="3"><div class="empty"><div class="big">🔎</div>Нічого не знайдено.</div></td></tr>`;
+
+    wrap.querySelectorAll("[data-take]").forEach(btn=> btn.addEventListener("click", ()=> openTakeModal(parseInt(btn.dataset.take), btn.dataset.title, parseInt(btn.dataset.avail))));
+  }
+
+  function openTakeModal(bookId, title, avail){
+    const maxBooks = parseInt(getSetting("max_books_per_user","10"),10);
+    const days = getSetting("default_loan_days","14");
+    openModal(`
+      <div class="mhead"><h2>Взяти книгу</h2><button onclick="closeModal()">✕</button></div>
+      <p class="hint">«${escapeHtml(title)}» · доступно ${avail} прим. · строк повернення — ${days} днів.</p>
+      <form id="takeForm">
+        <div class="field"><label>Кількість примірників</label><input type="number" name="qty" min="1" max="${avail}" value="1" required></div>
+        <div class="btnrow"><button type="submit" class="btn primary">Взяти</button><button type="button" class="btn" onclick="closeModal()">Скасувати</button></div>
+      </form>
+    `);
+    $("#takeForm").addEventListener("submit",(e)=>{
+      e.preventDefault();
+      const qty = new FormData(e.target).get("qty");
+      const res = issueBorrowing(State.currentUser.id, bookId, qty, days);
+      if(res.ok){ closeModal(); toast(res.msg,"ok"); draw(); } else toast(res.msg,"err");
+    });
+  }
+
+  wrap.innerHTML = `
+    <div class="section-head"><div><div class="kicker">Бібліотека</div><h1>Каталог книг</h1><div class="desc">Знайдіть книгу та візьміть доступний примірник.</div></div></div>
+    <div class="searchbar">
+      <input type="text" id="fSearch" placeholder="Назва, автор або ISBN…">
+      <select id="fGenre"><option value="">Усі жанри</option>${genres.map(g=>`<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("")}</select>
+      <select id="fAvail"><option value="">Усі</option><option value="yes">Лише доступні</option></select>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Книга</th><th>Наявність</th><th></th></tr></thead><tbody id="catBody"></tbody></table></div>
+  `;
+  wrap.querySelector("#fSearch").addEventListener("input", e=>{ filters.search=e.target.value; draw(); });
+  wrap.querySelector("#fGenre").addEventListener("change", e=>{ filters.genre=e.target.value; draw(); });
+  wrap.querySelector("#fAvail").addEventListener("change", e=>{ filters.avail=e.target.value; draw(); });
+  draw();
+  return wrap;
+}
+
+/* ============================== TEACHER: MY BOOKS ============================== */
+function viewMyBooks(){
+  const wrap = el(`<div></div>`);
+  function draw(){
+    const rows = q(`SELECT br.*, b.title,b.author FROM borrowings br JOIN books b ON b.id=br.book_id
+                     WHERE br.user_id=? AND br.status IN ('Видано','Частково повернено') ORDER BY br.borrowed_at DESC`, [State.currentUser.id]);
+    wrap.querySelector("#mineBody").innerHTML = rows.length? rows.map(b=>{
+      const remaining = b.quantity-b.returned_quantity;
+      return `<tr>
+        <td><div class="book-title">${escapeHtml(b.title)}</div><div class="book-sub">${escapeHtml(b.author)}</div></td>
+        <td class="stamp">${remaining}</td>
+        <td class="stamp">${fmtDate(b.borrowed_at)}</td>
+        <td class="stamp">${fmtDate(b.due_at)}</td>
+        <td>${isOverdue(b)?'<span class="badge warn">Прострочено</span>':(b.status==='Частково повернено'?'<span class="badge accent">Частково</span>':'<span class="badge ok">Видано</span>')}</td>
+        <td><button class="btn sm primary" data-ret="${b.id}" data-rem="${remaining}" data-title="${escapeHtml(b.title)}">Повернути</button></td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="6"><div class="empty"><div class="big">📚</div>Наразі ви не маєте книг на руках.</div></td></tr>`;
+    wrap.querySelectorAll("[data-ret]").forEach(btn=> btn.addEventListener("click", ()=>{
+      const id=parseInt(btn.dataset.ret), rem=parseInt(btn.dataset.rem), title=btn.dataset.title;
+      openModal(`
+        <div class="mhead"><h2>Повернення книги</h2><button onclick="closeModal()">✕</button></div>
+        <p class="hint">«${escapeHtml(title)}» — у вас на руках: ${rem} прим.</p>
+        <form id="retForm2">
+          <div class="field"><label>Кількість до повернення</label><input type="number" name="qty" min="1" max="${rem}" value="${rem}" required></div>
+          <div class="btnrow"><button type="submit" class="btn primary">Повернути</button><button type="button" class="btn" onclick="closeModal()">Скасувати</button></div>
+        </form>
+      `);
+      $("#retForm2").addEventListener("submit",(e)=>{
+        e.preventDefault();
+        const qty = new FormData(e.target).get("qty");
+        const res = returnBorrowing(id, qty);
+        if(res.ok){ closeModal(); toast(res.msg,"ok"); draw(); } else toast(res.msg,"err");
+      });
+    }));
+  }
+  wrap.innerHTML = `
+    <div class="section-head"><div><div class="kicker">Особисте</div><h1>Мої книги</h1><div class="desc">Книги, які зараз перебувають у вас на руках.</div></div></div>
+    <div class="tablewrap"><table><thead><tr><th>Книга</th><th>К-сть</th><th>Видано</th><th>Повернути до</th><th>Статус</th><th></th></tr></thead><tbody id="mineBody"></tbody></table></div>
+  `;
+  draw();
+  return wrap;
+}
+
+/* ============================== TEACHER: PROFILE ============================== */
+function viewProfile(){
+  const u = State.currentUser;
+  const wrap = el(`<div></div>`);
+  const totalTaken = q1("SELECT COALESCE(SUM(quantity),0) c FROM borrowings WHERE user_id=?", [u.id]).c;
+  const onHand = currentBorrowedCount(u.id);
+  wrap.innerHTML = `
+    <div class="section-head"><div><div class="kicker">Обліковий запис</div><h1>Профіль</h1></div></div>
+    <div class="grid cols-2">
+      <div class="card">
+        <h3 style="margin-bottom:10px;">${escapeHtml(userFullName(u))}</h3>
+        <p class="hint">Логін: <span class="stamp">@${escapeHtml(u.login)}</span></p>
+        <p class="hint">Роль: ${roleLabel(u.role)}</p>
+        <p class="hint">Клас: ${escapeHtml(className(u.class_id))}</p>
+        <p class="hint">Обліковий запис створено: ${fmtDate(u.created_at)}</p>
+        <hr style="border:none; border-top:1px solid var(--border); margin:14px 0;">
+        <form id="pwForm">
+          <div class="field"><label>Новий пароль</label><input type="password" name="password" autocomplete="new-password" placeholder="Залиште порожнім, щоб не змінювати"></div>
+          <button class="btn primary sm" type="submit">Змінити пароль</button>
+        </form>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr; gap:14px;">
+        <div class="stat"><div class="num">${onHand}</div><div class="lbl">Книг на руках зараз</div></div>
+        <div class="stat"><div class="num">${totalTaken}</div><div class="lbl">Всього взято за весь час</div></div>
+      </div>
+    </div>
+  `;
+  wrap.querySelector("#pwForm").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const pass = new FormData(e.target).get("password");
+    if(!pass){ toast("Введіть новий пароль.","err"); return; }
+    const hash = await sha256Hex(pass);
+    run("UPDATE users SET password_hash=? WHERE id=?", [hash, u.id]);
+    logAction("Зміна пароля","user",u.id,"Користувач змінив власний пароль.");
+    toast("Пароль оновлено.","ok");
+    e.target.reset();
+  });
+  return wrap;
+}
+
+/* ============================== BOOT ============================== */
+(async function boot(){
+  try{
+    await initDatabase();
+    State.booted = true;
+    render();
+  }catch(e){
+    console.error(e);
+    $("#root").innerHTML = `<div class="boot"><div class="mark">⚠️</div><div>Не вдалося завантажити базу даних. Спробуйте оновити сторінку.</div></div>`;
+  }
+})();
+</script>
+</body>
+</html>
